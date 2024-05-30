@@ -43,7 +43,7 @@ void printBinInt(uint32_t num) {
     for (int i = bits - 1; i >= 0; i--) {
         // Print the bit at the current position
         printf("%d", (num >> i) & 1);
-        if(i%8==0) {
+        if(i%8==0) { // if divisible by 8
             printf(" ");
         }
     }
