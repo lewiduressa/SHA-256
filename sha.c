@@ -43,7 +43,7 @@ void printBinInt(uint32_t num) {
     for (int i = bits - 1; i >= 0; i--) {
         // Print the bit at the current position
         printf("%d", (num >> i) & 1);
-        if(i%8==0) { // if divisible by 8
+        if(i%8==0) {
             printf(" ");
         }
     }
@@ -60,6 +60,11 @@ void printArr(char *data, int size, uint32_t *dataInt, int sizeInt)
             {
                 printf("\n");
             }
+            if(i<10) {
+                printf(" %d  ", i);
+            } else {
+                printf("%d  ", i);
+            }
             printBin(a);
             printf(" ");
             a++;
@@ -73,6 +78,11 @@ void printArr(char *data, int size, uint32_t *dataInt, int sizeInt)
         for (int i = 0; i < sizeInt; i++)
         {
             printf("\n");
+            if(i<10) {
+                printf(" %d  ", i);
+            } else {
+                printf("%d  ", i);
+            }
             printBinInt(*a);
             a++;
         }
@@ -184,6 +194,19 @@ void populateMessageBlocks(unsigned char *inputC, uint32_t *message, uint64_t bi
     message[mlen - 1] = b;
 }
 
+uint32_t addB(uint32_t a, uint32_t b) {
+    return (a+b)%0x100000000;
+}
+
+void populateW(uint32_t *W, uint32_t *message) {
+    for(int i=0; i<16;i++) {
+        W[i] = message[i];
+    }
+    for(int i=16; i<64;i++) {
+        W[i] = addB(addB(sigma1(W[i-2]), W[i-7]), addB(sigma0(i-15), W[i-16]));
+    }
+}
+
 int main()
 {
     const int WORD_SIZE = 256;
@@ -205,11 +228,12 @@ int main()
 
     for (int i = 0; i < numBlocks; i++)
     {
-        populateW(W[i]);
-        hash(W[i], A[i]);
+        populateW(W[i], message+i*16);
+        printArr(NULL, 0, W[i], 64);
+        //hash(W[i], A[i]);
     }
 
-    printHash(A[numBlocks - 1]);
+    //printHash(A[numBlocks - 1]);
 
     return 0;
 }
