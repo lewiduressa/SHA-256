@@ -49,6 +49,10 @@ void printBinInt(uint32_t num) {
     }
 }
 
+uint32_t addB(uint32_t a, uint32_t b) {
+    return (a+b)%0x100000000;
+}
+
 void printArr(char *data, int size, uint32_t *dataInt, int sizeInt)
 {
     if (data != NULL)
@@ -107,15 +111,8 @@ void zeroOutArr(char *ptr, uint32_t *ptrInt, int size, int sizeI)
         }
     }
 }
-void putLenInArr(char *input, int len)
-{
-    input[60] = len >> 24;
-    input[61] = len >> 16;
-    input[62] = len >> 8;
-    input[63] = len;
-}
 
-int rightRotate(int x, int n)
+int rightRotate(uint32_t x, int n)
 {
     int shifted = x >> n;
     int rot_bits = x << (32 - n);
@@ -124,56 +121,46 @@ int rightRotate(int x, int n)
     return combined;
 }
 
-int leftRotate(unsigned int x, int n)
+uint32_t leftRotate(uint32_t x, int n)
 {
-    int shifted = x << n;
-    int rot_bits = x >> (32 - n);
-    int combined = shifted | rot_bits;
+    uint32_t shifted = x << n;
+    uint32_t rot_bits = x >> (32 - n);
+    uint32_t combined = shifted | rot_bits;
     return combined;
 }
 
-int sigma0(int n)
+uint32_t sigma0(uint32_t n)
 {
-    int r1 = rightRotate(n, 7);
-    int r2 = rightRotate(n, 18);
-    int r3 = n >> 3;
+    uint32_t r1 = rightRotate(n, 7);
+    uint32_t r2 = rightRotate(n, 18);
+    uint32_t r3 = n >> 3;
 
-    return r1 ^ r2 ^ r3;
+    return r1^r2^r3;
 }
 
-int sigma1(int n)
+uint32_t sigma1(uint32_t n)
 {
-    int r1 = rightRotate(n, 17);
-    int r2 = rightRotate(n, 19);
-    int r3 = n >> 10;
+    uint32_t r1 = rightRotate(n, 17);
+    uint32_t r2 = rightRotate(n, 19);
+    uint32_t r3 = n >> 10;
 
-    return r1 ^ r2 ^ r3;
+    return r1^r2^r3;
 }
 
-int ifromc(char *c)
-{
-    int i = 0;
-    i = ((int)*c << 24) | ((int)*(c + 1) << 16) | ((int)*(c + 2) << 8) | ((int)*(c + 3));
+uint32_t BigSigma0(uint32_t n) {
+    uint32_t r1 = rightRotate(n, 2);
+    uint32_t r2 = rightRotate(n, 13);
+    uint32_t r3 = rightRotate(n, 22);
 
-    return i;
+    return r1^r2^r3;
 }
 
-void insertW(unsigned int w, char *input, int index)
-{
-    input[index * 4] = (char)w >> 24;
-    input[(index + 1) * 4] = (char)w >> 16;
-    input[(index + 2) * 4] = (char)w >> 8;
-    input[(index + 3) * 4] = (char)w;
-}
+uint32_t BigSigma1(uint32_t n) {
+    uint32_t r1 = rightRotate(n, 6);
+    uint32_t r2 = rightRotate(n, 11);
+    uint32_t r3 = rightRotate(n, 25);
 
-void fillWs(char *input)
-{
-    unsigned int w;
-    for (int i = 16; i < 64; i++)
-    {
-        w = sigma1(ifromc(&(input[(i - 2) * 4]))) | ifromc(&(input[(i - 7) * 4])) | sigma0(ifromc(&(input[(i - 15) * 4]))) | ifromc(&(input[(i - 16) * 4]));
-        insertW(w, input, i);
-    }
+    return r1^r2^r3;
 }
 
 void populateMessageBlocks(unsigned char *inputC, uint32_t *message, uint64_t bits, int mlen)
@@ -194,17 +181,83 @@ void populateMessageBlocks(unsigned char *inputC, uint32_t *message, uint64_t bi
     message[mlen - 1] = b;
 }
 
-uint32_t addB(uint32_t a, uint32_t b) {
-    return (a+b)%0x100000000;
-}
-
 void populateW(uint32_t *W, uint32_t *message) {
     for(int i=0; i<16;i++) {
         W[i] = message[i];
     }
+    
     for(int i=16; i<64;i++) {
-        W[i] = addB(addB(sigma1(W[i-2]), W[i-7]), addB(sigma0(i-15), W[i-16]));
+        W[i] = addB(addB(addB(sigma1(W[i-2]), W[i-7]), sigma0(W[i-15])), W[i-16]);
     }
+}
+
+uint32_t Ch(uint32_t a, uint32_t b, uint32_t c) {
+    uint32_t d = 0;
+    for(int i=0;i<32;i++) {
+        if((a>>i)<<31 != 0) {
+            if((b>>i)<<31 != 0) {
+                d |= 0x00000001 << i;
+            }
+        } else {
+            if((c>>i)<<31 != 0) {
+                d |= 0x00000001 << i;
+            }
+        }
+    }
+
+    return d;
+}
+
+uint32_t Maj(uint32_t a, uint32_t b, uint32_t c) {
+    uint32_t d = 0;
+    int count1 = 0;
+    for(int i=0;i<32;i++) {
+        count1 = 0;
+        if((a>>i)<<31 != 0) {
+            count1++;
+        }
+        if((b>>i)<<31 != 0) {
+            count1++;
+        }
+        if((c>>i)<<31 != 0) {
+            count1++;
+        }
+        if(count1>=2) {
+            d |= 0x00000001 << i;
+        } 
+    }
+
+    return d;
+}
+
+void hash(uint32_t *W, uint32_t *AInit, uint32_t *hashCode) {
+    uint32_t *A = malloc(32*8);
+    for(int i=0;i<8;i++) {
+        A[i]=AInit[i];
+    }
+    for(int i=0;i<64;i++) {
+        uint32_t T1 = addB(addB(addB(addB(A[7], BigSigma1(A[4])), Ch(A[4], A[5], A[6])), K[i]),  W[i]);
+        uint32_t T2 = addB(BigSigma0(A[0]), Maj(A[0], A[1], A[2]));
+        A[7] = A[6];
+        A[6] = A[5];
+        A[5] = A[4];
+        A[4] = addB(A[3], T1);
+        A[3] = A[2];
+        A[2] = A[1];
+        A[1] = A[0];
+        A[0] = addB(T1, T2);
+    }
+    for(int i=0;i<8;i++) {
+        hashCode[i]=addB(AInit[i], A[i]);
+    }
+    free(A);
+}
+
+void printHash(uint32_t *hashCode) {
+    for(int i=0;i<8;i++) {
+        printf("%x",hashCode[i]);
+    }
+    printf("\n");
 }
 
 int main()
@@ -221,19 +274,31 @@ int main()
     uint32_t message[mlen];
     zeroOutArr(NULL, message, 0, mlen);
     populateMessageBlocks((unsigned char*)inputC, message, bits, mlen);
-    printArr(NULL, 0, message, mlen);
+    //printArr(NULL, 0, message, mlen);
 
     uint32_t W[numBlocks][64];
     uint32_t A[numBlocks][8];
+    uint32_t *hashCode = malloc(32*8);
+
+    for(int i=0;i<8;i++) {
+        A[0][i]= H[i];
+    }
 
     for (int i = 0; i < numBlocks; i++)
     {
         populateW(W[i], message+i*16);
-        printArr(NULL, 0, W[i], 64);
-        //hash(W[i], A[i]);
+        //printArr(NULL, 0, W[i], 64);
+        hash(W[i], A[i], hashCode);
+        if(i+1<numBlocks) {
+            for(int j=0;j<8;j++) {
+                A[i+1][j] = hashCode[j];
+            }
+        }
+        
     }
 
-    //printHash(A[numBlocks - 1]);
+    printHash(hashCode); // r: 454349...
+    free(hashCode);
 
     return 0;
 }
